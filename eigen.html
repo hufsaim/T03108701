@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3x3 Matrix Eigenvector 3D Visualizer (Complex Support)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+            background-color: #f4f6f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 1000px;
+            width: 100%;
+        }
+        
+        .input-area { margin-bottom: 25px; }
+        .matrix-grid {
+            display: inline-grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            position: relative;
+            padding: 0 15px;
+            margin-right: 20px;
+            vertical-align: middle;
+        }
+        .matrix-grid::before, .matrix-grid::after {
+            content: ""; position: absolute; top: -5px; bottom: -5px; width: 10px; border: 2px solid #333;
+        }
+        .matrix-grid::before { left: 0; border-right: none; }
+        .matrix-grid::after { right: 0; border-left: none; }
+
+        input {
+            width: 50px; height: 35px; text-align: center; font-size: 16px;
+            border: 1px solid #ccc; border-radius: 4px; background-color: #fafafa;
+        }
+        button {
+            padding: 10px 25px; background-color: #4a90e2; color: white;
+            border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold;
+            vertical-align: middle;
+        }
+        button:hover { background-color: #357abd; }
+
+        .canvas-container {
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; margin-top: 10px;
+        }
+        .canvas-box { position: relative; }
+        canvas {
+            border: 1px solid #ddd; background-color: #fff; border-radius: 4px; cursor: move;
+        }
+        
+        .info-text { font-size: 14px; color: #666; margin-bottom: 5px; height: 40px; }
+        .legend { margin-top: 10px; font-size: 13px; text-align: left; padding-left: 20px;}
+        
+        /* 결과 테이블 스타일 */
+        .result-panel {
+            margin-top: 30px; padding: 20px; background-color: #f8f9fa;
+            border-radius: 8px; border: 1px solid #e9ecef;
+        }
+        .result-panel h3 { margin-top: 0; color: #333; margin-bottom: 15px; font-size: 18px; }
+        .result-table {
+            width: 100%; border-collapse: collapse; font-family: 'Consolas', monospace; font-size: 14px; background: white;
+        }
+        .result-table th, .result-table td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        .result-table th { background-color: #4a90e2; color: white; font-weight: normal; }
+        .result-table tr:nth-child(even) { background-color: #f2f2f2; }
+
+        /* Complex value specific style */
+        .complex-row { color: #888; font-style: italic; }
+        .complex-note { font-size: 12px; color: #e67e22; }
+
+        .color-dot {
+            display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px;
+        }
+        .color-dot.empty { background-color: #ddd; border: 1px solid #ccc; }
+
+        .footer-signature {
+            width: 100%; text-align: right; font-size: 12px; color: #888;
+            border-top: 1px solid #eee; padding-top: 15px; margin-top: 30px; font-style: italic;
+        }
+        .footer-signature strong { color: #002c5f; }
+        .instruction { font-size: 12px; color: #e67e22; margin-bottom: 10px; font-weight: bold;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>3x3 Matrix 3D Visualizer: Columns & Eigenvectors</h2>
+    <div class="instruction">※ 마우스로 캔버스를 드래그하여 3D 그래프를 회전시켜 보세요!</div>
+
+    <div class="input-area">
+        <div class="matrix-grid">
+            <input type="number" id="m00" value="0"><input type="number" id="m01" value="-1"><input type="number" id="m02" value="0">
+            <input type="number" id="m10" value="1"><input type="number" id="m11" value="0"><input type="number" id="m12" value="0">
+            <input type="number" id="m20" value="0"><input type="number" id="m21" value="0"><input type="number" id="m22" value="2">
+        </div>
+        <button onclick="calculateAndRender()">Visualize 3D</button>
+    </div>
+    
+    <div id="msg" style="color:red; height:20px; font-size:14px; margin-bottom:10px;"></div>
+
+    <div class="canvas-container">
+        <div class="canvas-box">
+            <h3>1. Column Vectors (Basis Transform)</h3>
+            <div class="info-text">X(1,0,0), Y(0,1,0), Z(0,0,1) 기저 벡터가<br>이동한 위치를 나타냅니다.</div>
+            <canvas id="canvasLeft" width="400" height="400"></canvas>
+            <div class="legend">
+                <span style="color:red">● Col 1 (Red)</span><br>
+                <span style="color:green">● Col 2 (Green)</span><br>
+                <span style="color:blue">● Col 3 (Blue)</span>
+            </div>
+        </div>
+
+        <div class="canvas-box">
+            <h3>2. Eigenvectors (Scaled by λ)</h3>
+            <div class="info-text">실수 고유벡터만 시각화됩니다.<br>복소수 고유값은 아래 표를 참고하세요.</div>
+            <canvas id="canvasRight" width="400" height="400"></canvas>
+            <div class="legend">
+                <span class="color-dot" style="background-color:#9b59b6"></span>v1 <br>
+                <span class="color-dot" style="background-color:#e67e22"></span>v2 <br>
+                <span class="color-dot" style="background-color:#1abc9c"></span>v3 <br>
+            </div>
+        </div>
+    </div>
+
+    <div class="result-panel">
+        <h3>Calculated Results</h3>
+        <table class="result-table" id="resultTable">
+            <thead>
+                <tr>
+                    <th>Index / Color</th>
+                    <th>Eigenvalue (λ)</th>
+                    <th>Eigenvector (v, normalized)</th>
+                </tr>
+            </thead>
+            <tbody id="resultBody">
+                </tbody>
+        </table>
+    </div>
+
+    <div class="footer-signature">
+        Software provided by <strong>HUFS BME Linear Algebra class (Prof. Yoonho Nam)</strong>
+    </div>
+</div>
+
+<script>
+    // --- 설정 ---
+    const scale = 50;
+    const eigenColors = ['#9b59b6', '#e67e22', '#1abc9c']; // 보라, 주황, 청록
+    
+    // --- 3D 뷰어 변수 ---
+    let rotation = { x: -0.4, y: 0.6 }; 
+    let isDragging = false;
+    let lastMouse = { x: 0, y: 0 };
+
+    // 데이터 저장소
+    let matrixCols = [];
+    let eigenData = []; 
+
+    const cvsLeft = document.getElementById('canvasLeft');
+    const ctxLeft = cvsLeft.getContext('2d');
+    const cvsRight = document.getElementById('canvasRight');
+    const ctxRight = cvsRight.getContext('2d');
+
+    // 마우스 이벤트 (회전)
+    [cvsLeft, cvsRight].forEach(cvs => {
+        cvs.addEventListener('mousedown', e => { isDragging = true; lastMouse = { x: e.clientX, y: e.clientY }; });
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const dx = e.clientX - lastMouse.x;
+            const dy = e.clientY - lastMouse.y;
+            rotation.y += dx * 0.01;
+            rotation.x += dy * 0.01;
+            lastMouse = { x: e.clientX, y: e.clientY };
+            drawAll();
+        });
+    });
+
+    window.onload = calculateAndRender;
+
+    function calculateAndRender() {
+        // 1. 입력값 파싱
+        const ids = ['m00','m01','m02','m10','m11','m12','m20','m21','m22'];
+        const m = ids.map(id => parseFloat(document.getElementById(id).value));
+        const A = [
+            [m[0], m[1], m[2]],
+            [m[3], m[4], m[5]],
+            [m[6], m[7], m[8]]
+        ];
+
+        // 2. Column Vectors
+        matrixCols = [
+            { x: A[0][0], y: A[1][0], z: A[2][0], color: 'red' },
+            { x: A[0][1], y: A[1][1], z: A[2][1], color: 'green' },
+            { x: A[0][2], y: A[1][2], z: A[2][2], color: 'blue' }
+        ];
+
+        // 3. Eigenvalue/Eigenvector 계산 (복소수 포함)
+        const tr = A[0][0] + A[1][1] + A[2][2];
+        const M11 = A[1][1]*A[2][2] - A[1][2]*A[2][1];
+        const M22 = A[0][0]*A[2][2] - A[0][2]*A[2][0];
+        const M33 = A[0][0]*A[1][1] - A[0][1]*A[1][0];
+        const det = A[0][0]*(A[1][1]*A[2][2] - A[1][2]*A[2][1]) 
+                  - A[0][1]*(A[1][0]*A[2][2] - A[1][2]*A[2][0]) 
+                  + A[0][2]*(A[1][0]*A[2][1] - A[1][1]*A[2][0]);
+
+        // x^3 + a x^2 + b x + c = 0
+        const roots = solveCubicComplex(-tr, M11 + M22 + M33, -det);
+        
+        document.getElementById('msg').innerText = "";
+        eigenData = [];
+
+        roots.forEach((lambda, i) => {
+            // 복소수(허수부 존재)인 경우
+            if (Math.abs(lambda.im) > 1e-9) {
+                eigenData.push({
+                    isComplex: true,
+                    valRe: lambda.re,
+                    valIm: lambda.im,
+                    color: '#dddddd' // 회색 (플롯 안함)
+                });
+            } 
+            // 실수인 경우
+            else {
+                const val = lambda.re;
+                const vec = getEigenVector3x3(A, val);
+                if (vec) {
+                    eigenData.push({ 
+                        isComplex: false,
+                        valRe: val, 
+                        valIm: 0,
+                        vecRaw: vec, 
+                        vecScaled: { x: vec.x * val, y: vec.y * val, z: vec.z * val },
+                        color: eigenColors[eigenData.length % eigenColors.length] // 순서대로 색 부여
+                    });
+                }
+            }
+        });
+
+        drawAll();
+        updateResultTable();
+    }
+
+    function updateResultTable() {
+        const tbody = document.getElementById('resultBody');
+        tbody.innerHTML = ""; 
+
+        if (eigenData.length === 0) {
+            tbody.innerHTML = "<tr><td colspan='3'>결과를 계산할 수 없습니다.</td></tr>";
+            return;
+        }
+
+        eigenData.forEach((data, index) => {
+            const row = document.createElement('tr');
+            
+            // 람다 표시
+            let lambdaText = "";
+            if (data.isComplex) {
+                const sign = data.valIm >= 0 ? "+" : "-";
+                lambdaText = `${data.valRe.toFixed(3)} ${sign} ${Math.abs(data.valIm).toFixed(3)}i <span class="complex-note">(Complex)</span>`;
+                row.className = "complex-row";
+            } else {
+                lambdaText = `${data.valRe.toFixed(4)}`;
+            }
+
+            // 벡터 표시
+            let vecText = "";
+            let colorDot = "";
+
+            if (data.isComplex) {
+                vecText = "Complex Vector (Not plotted)";
+                colorDot = `<span class="color-dot empty"></span>`; // 빈 점
+            } else {
+                const vx = data.vecRaw.x.toFixed(3);
+                const vy = data.vecRaw.y.toFixed(3);
+                const vz = data.vecRaw.z.toFixed(3);
+                vecText = `[ ${vx}, ${vy}, ${vz} ]<sup>T</sup>`;
+                colorDot = `<span class="color-dot" style="background-color: ${data.color}"></span>`;
+            }
+
+            row.innerHTML = `
+                <td>
+                    ${colorDot}
+                    <strong>λ${index + 1}</strong>
+                </td>
+                <td>${lambdaText}</td>
+                <td>${vecText}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // --- Drawing Engine ---
+    function project(x, y, z) {
+        const cx = Math.cos(rotation.x), sx = Math.sin(rotation.x);
+        const cy = Math.cos(rotation.y), sy = Math.sin(rotation.y);
+        let x1 = x * cy - z * sy;
+        let z1 = x * sy + z * cy;
+        let y1 = y * cx - z1 * sx;
+        return { x: x1 * scale + 200, y: -y1 * scale + 200 };
+    }
+
+    function drawAll() {
+        drawScene(ctxLeft, matrixCols, true);
+        
+        // 실수 벡터만 필터링하여 그리기
+        const realVectors = eigenData
+            .filter(d => !d.isComplex)
+            .map(d => ({...d.vecScaled, color: d.color, label: `λ=${d.valRe.toFixed(2)}`}));
+            
+        drawScene(ctxRight, realVectors, false);
+    }
+
+    function drawScene(ctx, vectors, isColumns) {
+        ctx.clearRect(0, 0, 400, 400);
+        
+        // Grid / Axes
+        const axisLen = 3;
+        drawLine(ctx, -axisLen, 0, 0, axisLen, 0, 0, '#eee'); 
+        drawLine(ctx, 0, -axisLen, 0, 0, axisLen, 0, '#eee'); 
+        drawLine(ctx, 0, 0, -axisLen, 0, 0, axisLen, '#eee'); 
+
+        // Reference Axes (RGB)
+        drawVector3D(ctx, 0,0,0, 4,0,0, 'rgba(255,0,0,0.2)', null, false);
+        drawVector3D(ctx, 0,0,0, 0,4,0, 'rgba(0,255,0,0.2)', null, false);
+        drawVector3D(ctx, 0,0,0, 0,0,4, 'rgba(0,0,255,0.2)', null, false);
+
+        // Main Vectors
+        vectors.forEach(v => {
+            drawVector3D(ctx, 0, 0, 0, v.x, v.y, v.z, v.color, v.label, true);
+        });
+        
+        // Labels
+        const pX = project(4.2, 0, 0); ctx.fillStyle='#999'; ctx.fillText('x', pX.x, pX.y);
+        const pY = project(0, 4.2, 0); ctx.fillStyle='#999'; ctx.fillText('y', pY.x, pY.y);
+        const pZ = project(0, 0, 4.2); ctx.fillStyle='#999'; ctx.fillText('z', pZ.x, pZ.y);
+    }
+
+    function drawLine(ctx, x1, y1, z1, x2, y2, z2, color) {
+        const p1 = project(x1, y1, z1);
+        const p2 = project(x2, y2, z2);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    function drawVector3D(ctx, x1, y1, z1, x2, y2, z2, color, label, isMain) {
+        const p1 = project(x1, y1, z1);
+        const p2 = project(x2, y2, z2);
+        
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = isMain ? 3 : 1;
+        ctx.stroke();
+
+        // Arrowhead
+        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        const headLen = isMain ? 12 : 8; 
+
+        ctx.beginPath();
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(p2.x - headLen * Math.cos(angle - Math.PI / 6), p2.y - headLen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(p2.x - headLen * Math.cos(angle + Math.PI / 6), p2.y - headLen * Math.sin(angle + Math.PI / 6));
+        ctx.lineTo(p2.x, p2.y); 
+        ctx.fillStyle = color;
+        ctx.fill(); 
+
+        if (label) {
+            ctx.fillStyle = "#333";
+            ctx.font = "bold 12px Arial";
+            ctx.fillText(label, p2.x + 8, p2.y);
+        }
+    }
+
+    // --- Math Helpers (Complex Support) ---
+    
+    // 3차 방정식 풀이 (복소근 포함)
+    function solveCubicComplex(a, b, c) {
+        // x^3 + ax^2 + bx + c = 0
+        const p = b - (a*a)/3;
+        const q = (2*a*a*a)/27 - (a*b)/3 + c;
+        const discriminant = (q*q)/4 + (p*p*p)/27;
+        
+        let roots = [];
+        const shift = a/3;
+
+        // Case 1: One real root, two complex conjugate roots (Delta > 0)
+        if (discriminant > 0) {
+            const r = -q/2 + Math.sqrt(discriminant);
+            const s = -q/2 - Math.sqrt(discriminant);
+            const u = Math.cbrt(r); 
+            const v = Math.cbrt(s);
+            
+            // Real Root
+            roots.push({ re: u + v - shift, im: 0 });
+            
+            // Complex Roots: -(u+v)/2 ± i((u-v)sqrt(3)/2)
+            const realPart = -(u + v) / 2 - shift;
+            const imagPart = (u - v) * Math.sqrt(3) / 2;
+            roots.push({ re: realPart, im: imagPart });
+            roots.push({ re: realPart, im: -imagPart });
+        } 
+        // Case 2: Three real roots (Delta <= 0)
+        else {
+            const r = Math.sqrt(-(p*p*p)/27);
+            const phi = Math.acos(-q / (2*r));
+            const t = 2 * Math.cbrt(r);
+            
+            roots.push({ re: t * Math.cos(phi/3) - shift, im: 0 });
+            roots.push({ re: t * Math.cos((phi + 2*Math.PI)/3) - shift, im: 0 });
+            roots.push({ re: t * Math.cos((phi + 4*Math.PI)/3) - shift, im: 0 });
+        }
+        return roots;
+    }
+
+    function getEigenVector3x3(A, lambda) {
+        // Simple Real Solver
+        const M = [
+            [A[0][0]-lambda, A[0][1], A[0][2]],
+            [A[1][0], A[1][1]-lambda, A[1][2]],
+            [A[2][0], A[2][1], A[2][2]-lambda]
+        ];
+        let v = crossProduct(M[0], M[1]);
+        if (mag(v) < 1e-6) v = crossProduct(M[0], M[2]);
+        if (mag(v) < 1e-6) v = crossProduct(M[1], M[2]);
+        if (mag(v) < 1e-6) return {x:1, y:0, z:0}; 
+        const m = mag(v);
+        return { x: v.x/m, y: v.y/m, z: v.z/m };
+    }
+    function crossProduct(r1, r2) {
+        return { x: r1[1]*r2[2] - r1[2]*r2[1], y: r1[2]*r2[0] - r1[0]*r2[2], z: r1[0]*r2[1] - r1[1]*r2[0] };
+    }
+    function mag(v) { return Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z); }
+
+</script>
+
+</body>
+</html>

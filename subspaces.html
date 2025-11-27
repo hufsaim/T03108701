@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Four Fundamental Subspaces</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            text-align: center;
+            max-width: 1000px;
+            width: 100%;
+        }
+        
+        .input-area { margin-bottom: 25px; }
+        .matrix-grid {
+            display: inline-grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            padding: 10px;
+            background: #eee;
+            border-radius: 8px;
+            vertical-align: middle;
+            margin-right: 20px;
+        }
+        input {
+            width: 50px; height: 35px; text-align: center; font-size: 16px;
+            border: 1px solid #ccc; border-radius: 4px;
+        }
+        button {
+            padding: 12px 25px; background-color: #2c3e50; color: white;
+            border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold;
+        }
+        button:hover { background-color: #34495e; }
+
+        .canvas-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+        .figure-box h3 { margin: 0 0 10px 0; color: #444; font-size: 18px; }
+        canvas {
+            border: 1px solid #ddd; background-color: #fff; border-radius: 4px; cursor: move;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.02);
+        }
+
+        .legend {
+            margin-top: 15px; font-size: 14px; display: flex; justify-content: center; flex-wrap: wrap; gap: 15px;
+        }
+        .dot-legend {
+            display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle;
+        }
+        
+        .info-panel {
+            margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: left; font-size: 14px;
+            display: flex; gap: 30px;
+        }
+        .info-col { flex: 1; }
+        .info-panel h4 { margin: 0 0 10px 0; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+
+        .footer-signature {
+            width: 100%; text-align: right; font-size: 12px; color: #888;
+            border-top: 1px solid #eee; padding-top: 15px; margin-top: 30px; font-style: italic;
+        }
+        .footer-signature strong { color: #002c5f; }
+        .sync-badge {
+            display: inline-block; background: #e74c3c; color: white; font-size: 11px; padding: 2px 6px; border-radius: 4px; vertical-align: middle; margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>The Four Fundamental Subspaces</h2>
+
+    <div class="input-area">
+        <div class="matrix-grid">
+            <input type="number" id="m00" value="1"><input type="number" id="m01" value="0"><input type="number" id="m02" value="1">
+            <input type="number" id="m10" value="0"><input type="number" id="m11" value="1"><input type="number" id="m12" value="1">
+            <input type="number" id="m20" value="0"><input type="number" id="m21" value="0"><input type="number" id="m22" value="0">
+        </div>
+        <button onclick="updateAll()">Visualize All</button>
+    </div>
+
+    <div class="canvas-wrapper">
+        <div class="figure-box">
+            <h3>Row Space & Null Space</h3>
+            <canvas id="canvas1" width="450" height="450"></canvas>
+        </div>
+        <div class="figure-box">
+            <h3>Column Space & Left Null Space</h3>
+            <canvas id="canvas2" width="450" height="450"></canvas>
+        </div>
+    </div>
+
+    <div class="legend">
+        <span><span class="dot-legend" style="background-color: #e74c3c;"></span>Row Space C(A<sup>T</sup>)</span>
+        <span><span class="dot-legend" style="background-color: #3498db;"></span>Null Space N(A)</span>
+        <span> | </span>
+        <span><span class="dot-legend" style="background-color: #2ecc71;"></span>Column Space C(A)</span>
+        <span><span class="dot-legend" style="background-color: #9b59b6;"></span>Left Null Space N(A<sup>T</sup>)</span>
+    </div>
+
+    <div class="info-panel" id="infoText">
+        </div>
+
+    <div class="footer-signature">
+        Software provided by <strong>HUFS BME Linear Algebra class</strong>
+    </div>
+</div>
+
+<script>
+    // --- 설정 변수 ---
+    const scale = 75; 
+    const numPoints = 512;
+    const range = 1.5;
+
+    // 캔버스 참조
+    const cvs1 = document.getElementById('canvas1');
+    const ctx1 = cvs1.getContext('2d');
+    const cvs2 = document.getElementById('canvas2');
+    const ctx2 = cvs2.getContext('2d');
+
+    // **핵심: 통합된 회전 상태 변수**
+    let globalRotation = { x: -0.4, y: 0.6 }; 
+    let isDragging = false;
+    let lastMouse = { x: 0, y: 0 };
+
+    // 데이터 저장소
+    let points1 = [];
+    let points2 = [];
+
+    // --- 이벤트 리스너: 동기화 구현 ---
+    // 두 캔버스 모두에 마우스 다운 이벤트 등록
+    [cvs1, cvs2].forEach(cvs => {
+        cvs.addEventListener('mousedown', e => {
+            isDragging = true;
+            lastMouse = { x: e.clientX, y: e.clientY };
+        });
+    });
+
+    // 마우스 업 (전역)
+    window.addEventListener('mouseup', () => isDragging = false);
+
+    // 마우스 이동 (전역) -> 두 캔버스 동시 업데이트
+    window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        const dx = e.clientX - lastMouse.x;
+        const dy = e.clientY - lastMouse.y;
+        
+        // 회전 각도 업데이트 (하나의 변수만 사용)
+        globalRotation.y += dx * 0.01;
+        globalRotation.x += dy * 0.01;
+        
+        lastMouse = { x: e.clientX, y: e.clientY };
+
+        // **두 캔버스 동시 그리기**
+        drawScene(ctx1, points1);
+        drawScene(ctx2, points2);
+    });
+
+    window.onload = updateAll;
+
+    // --- 메인 업데이트 함수 ---
+    function updateAll() {
+        const A = [];
+        for(let r=0; r<3; r++) {
+            let row = [];
+            for(let c=0; c<3; c++) {
+                row.push(parseFloat(document.getElementById(`m${r}${c}`).value));
+            }
+            A.push(row);
+        }
+
+        // 분석
+        const analysisA = analyzeMatrixGeneral(A);
+        const rowBasis = analysisA.rowBasis;
+        const nullBasis = analysisA.nullBasis;
+        // Col basis는 원본 행렬의 pivot column 사용
+        const colBasis = analysisA.pivotCols.map(colIdx => ({ x: A[0][colIdx], y: A[1][colIdx], z: A[2][colIdx] }));
+        const rank = analysisA.rank;
+
+        const AT = transpose(A);
+        const analysisAT = analyzeMatrixGeneral(AT);
+        const leftNullBasis = analysisAT.nullBasis;
+
+        // 점 생성
+        points1 = []; points2 = [];
+        generateCloud(points1, rowBasis, '#e74c3c');
+        generateCloud(points1, nullBasis, '#3498db');
+        generateCloud(points2, colBasis, '#2ecc71');
+        generateCloud(points2, leftNullBasis, '#9b59b6');
+
+        // 정보 업데이트 및 초기 그리기
+        updateInfo(rank, 3-rank, rowBasis, nullBasis, colBasis, leftNullBasis);
+        drawScene(ctx1, points1);
+        drawScene(ctx2, points2);
+    }
+
+    function generateCloud(targetArray, basisSet, color) {
+        if (basisSet.length > 0) {
+            for(let i=0; i<numPoints; i++) {
+                let p = {x:0, y:0, z:0};
+                basisSet.forEach(basis => {
+                    const c = (Math.random() - 0.5) * 2 * range; 
+                    p.x += basis.x * c; p.y += basis.y * c; p.z += basis.z * c;
+                });
+                targetArray.push({ ...p, color: color });
+            }
+        } else { targetArray.push({x:0, y:0, z:0, color: color}); }
+    }
+
+    // --- Drawing Engine (수정됨: globalRotation 사용) ---
+    function drawScene(ctx, points) {
+        const w = ctx.canvas.width; const h = ctx.canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        
+        // 축 그리기 (Black)
+        drawAxis(ctx, 2.5, 0, 0, 'x');
+        drawAxis(ctx, 0, 2.5, 0, 'y'); 
+        drawAxis(ctx, 0, 0, 2.5, 'z');
+
+        // 점 그리기
+        points.sort((a, b) => project3D(a, w, h).zDepth - project3D(b, w, h).zDepth);
+        points.forEach(p => {
+            const proj = project3D(p, w, h);
+            ctx.fillStyle = p.color; ctx.beginPath();
+            const size = Math.max(2, 4 + proj.zDepth * 0.01); 
+            ctx.arc(proj.x, proj.y, size/2, 0, Math.PI*2); ctx.fill();
+        });
+    }
+
+    function drawAxis(ctx, x, y, z, label) {
+        const w = ctx.canvas.width; const h = ctx.canvas.height;
+        const p1 = project3D({x:0, y:0, z:0}, w, h);
+        const p2 = project3D({x:x, y:y, z:z}, w, h);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#000'; ctx.font = "bold 14px Arial"; ctx.fillText(label, p2.x, p2.y);
+    }
+
+    function project3D(p, w, h) {
+        // 전역 rotation 변수 사용
+        const cx = Math.cos(globalRotation.x), sx = Math.sin(globalRotation.x);
+        const cy = Math.cos(globalRotation.y), sy = Math.sin(globalRotation.y);
+        let x = p.x, y = p.y, z = p.z;
+        let x1 = x * cy - z * sy; let z1 = x * sy + z * cy;
+        let y1 = y * cx - z1 * sx; let z2 = y * sx + z1 * cx; 
+        return { x: x1 * scale + w/2, y: -y1 * scale + h/2, zDepth: z2 };
+    }
+
+    // --- Math Logic ---
+    function transpose(A) {
+        return A[0].map((_, coli) => A.map(row => row[coli]));
+    }
+
+    function analyzeMatrixGeneral(A) {
+        let M = JSON.parse(JSON.stringify(A));
+        const rows = 3; const cols = 3;
+        let rank = 0;
+
+        for (let c = 0; c < cols && rank < rows; c++) {
+            let pivotRow = rank;
+            while (pivotRow < rows && Math.abs(M[pivotRow][c]) < 1e-6) pivotRow++;
+            if (pivotRow < rows) {
+                let temp = M[rank]; M[rank] = M[pivotRow]; M[pivotRow] = temp;
+                let pivotVal = M[rank][c];
+                for (let j = c; j < cols; j++) M[rank][j] /= pivotVal;
+                for (let i = 0; i < rows; i++) {
+                    if (i !== rank) {
+                        let factor = M[i][c];
+                        for (let j = c; j < cols; j++) M[i][j] -= factor * M[rank][j];
+                    }
+                }
+                rank++; 
+            }
+        }
+
+        let rowBasis = [];
+        let pivotColsIndices = []; 
+        for(let r=0; r<rows; r++) {
+            let isZeroRow = true; let firstNonZeroCol = -1;
+            for(let c=0; c<cols; c++) {
+                if(Math.abs(M[r][c]) > 1e-6) { isZeroRow = false; if(firstNonZeroCol === -1) firstNonZeroCol = c; }
+            }
+            if(!isZeroRow) {
+                rowBasis.push({ x: M[r][0], y: M[r][1], z: M[r][2] });
+                if(!pivotColsIndices.includes(firstNonZeroCol)) pivotColsIndices.push(firstNonZeroCol);
+            }
+        }
+
+        let nullBasis = [];
+        let freeCols = [0, 1, 2].filter(c => !pivotColsIndices.includes(c));
+        freeCols.forEach(freeColIdx => {
+            let vec = [0, 0, 0]; vec[freeColIdx] = 1;
+            for(let r=0; r<rowBasis.length; r++) {
+                let pivotColIdx = -1;
+                for(let c=0; c<cols; c++) { if(Math.abs(M[r][c]) > 1e-6) { pivotColIdx = c; break; } }
+                if(pivotColIdx !== -1 && pivotColIdx < freeColIdx) vec[pivotColIdx] -= M[r][freeColIdx];
+            }
+            const mag = Math.sqrt(vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2]);
+            if(mag > 1e-9) nullBasis.push({ x: vec[0]/mag, y: vec[1]/mag, z: vec[2]/mag });
+        });
+
+        return { rowBasis, nullBasis, rank: rowBasis.length, pivotCols: pivotColsIndices };
+    }
+
+    function updateInfo(rank, nullity, rb, nb, cb, lnb) {
+        const vecToStr = (bases) => bases.length ? bases.map(v => `[${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)}]`).join('<br>') : "{(0,0,0)}";
+        let html1 = `<h4>Figure 1: Input Space</h4>`;
+        html1 += `<strong>Row Space Basis (Red):</strong><br>${vecToStr(rb)}<br><br>`;
+        html1 += `<strong>Null Space Basis (Blue):</strong><br>${vecToStr(nb)}<br>`;
+        html1 += `<p>Rank: ${rank}, Nullity: ${nullity}</p>`;
+
+        let html2 = `<h4>Figure 2: Output Space</h4>`;
+        html2 += `<strong>Col Space Basis (Green):</strong><br>${vecToStr(cb)}<br><br>`;
+        html2 += `<strong>Left Null Basis (Purple):</strong><br>${vecToStr(lnb)}<br>`;
+        html2 += `<p>Dim(C(A)): ${rank}, Dim(N(A<sup>T</sup>)): ${3-rank}</p>`;
+
+        document.getElementById('infoText').innerHTML = `<div class="info-col">${html1}</div><div class="info-col">${html2}</div>`;
+    }
+</script>
+
+</body>
+</html>
