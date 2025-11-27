@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HUFS BME Linear Algebra Tools</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 { color: #2c3e50; margin-bottom: 10px; }
+        p.subtitle { color: #666; margin-bottom: 40px; }
+        
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            justify-content: center;
+        }
+        
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-decoration: none;
+            color: inherit;
+            border: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-color: #4a90e2;
+        }
+        
+        .card h3 { margin: 15px 0 10px 0; color: #333; }
+        .card p { color: #777; font-size: 14px; line-height: 1.5; }
+        
+        .icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .footer {
+            margin-top: 50px;
+            color: #888;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Linear Algebra Visualizers</h1>
+    <p class="subtitle">한국외국어대학교 바이오메디컬공학부 선형대수학의 주요개념 시각화 도구 모음</p>
+
+    <div class="card-grid">
+        <a href="subspaces.html" class="card">
+            <div class="icon">🟦🟥</div>
+            <h3>Four Subspaces</h3>
+            <p>Row Space, Null Space, Column Space,<br>Left Null Space의 직교성 시각화</p>
+        </a>
+
+        <a href="eigen.html" class="card">
+            <div class="icon">🔄📏</div>
+            <h3>Eigenvalues & Vectors</h3>
+            <p>3x3 행렬의 고유값과 고유벡터 계산<br>및 3D 회전 변환 시각화</p>
+        </a>
+    </div>
+
+    <div class="footer">
+        Provided by <strong>HUFS BME Linear Algebra Class</strong>
+    </div>
+</div>
+
+</body>
+</html>
