@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Visualization: Columns vs Eigenvectors</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; /* 한글 폰트 호환 추가 */
+            background-color: #f4f6f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 900px;
+            width: 100%;
+            position: relative; /* 푸터 배치를 위해 */
+        }
+        .input-area {
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+        .matrix-wrapper {
+            display: inline-grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            position: relative;
+            padding: 0 12px;
+        }
+        .matrix-wrapper::before, .matrix-wrapper::after {
+            content: "";
+            position: absolute;
+            top: -2px; bottom: -2px;
+            width: 8px;
+            border: 2px solid #333;
+        }
+        .matrix-wrapper::before { left: 0; border-right: none; }
+        .matrix-wrapper::after { right: 0; border-left: none; }
+        
+        input {
+            width: 60px; height: 40px;
+            text-align: center; font-size: 18px;
+            border: 1px solid #ccc; border-radius: 4px;
+            background-color: #fafafa;
+        }
+        button {
+            padding: 10px 25px;
+            background-color: #4a90e2;
+            color: white; border: none; border-radius: 6px;
+            font-size: 16px; cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #357abd; }
+
+        /* 캔버스 배치 레이아웃 */
+        .canvas-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            gap: 30px;
+            margin-top: 10px;
+            margin-bottom: 30px; /* 푸터 공간 확보 */
+        }
+        .canvas-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        h3 { margin-bottom: 10px; color: #444; }
+        .desc { font-size: 14px; color: #666; margin-bottom: 10px; min-height: 40px; line-height: 1.4;}
+        
+        .legend { margin-top: 8px; font-size: 13px; }
+        .col1 { color: #e74c3c; font-weight: bold; }
+        .col2 { color: #3498db; font-weight: bold; }
+        .eig1 { color: #9b59b6; font-weight: bold; }
+        .eig2 { color: #2ecc71; font-weight: bold; }
+
+        /* HUFS BME Footer Style */
+        .footer-signature {
+            width: 100%;
+            text-align: right;
+            font-size: 12px;
+            color: #888;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+            margin-top: 20px;
+            font-style: italic;
+        }
+        .footer-signature strong {
+            color: #002c5f; /* HUFS Navy Blue 비슷한 색상 */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Matrix Visualizer: Column vectors & Eigenvectors</h2>
+    
+    <div class="input-area">
+        <div class="matrix-wrapper">
+            <input type="number" id="a" value="2" step="0.1">
+            <input type="number" id="b" value="0" step="0.1">
+            <input type="number" id="c" value="0" step="0.1">
+            <input type="number" id="d" value="3" step="0.1">
+        </div>
+        <button onclick="updateVisualization()">Visualize</button>
+    </div>
+
+    <div id="errorMsg" style="color: #e74c3c; height: 24px; font-weight: bold; margin-bottom: 10px;"></div>
+
+    <div class="canvas-container">
+        <div class="canvas-box">
+            <h3>1. Column Vectors (Transform)</h3>
+            <div class="desc">
+                기저 벡터 i(1,0), j(0,1)가<br>어디로 변환되는지 보여줍니다.
+            </div>
+            <canvas id="canvasLeft" width="350" height="350"></canvas>
+            <div class="legend">
+                <span class="col1">Red: Col 1 (a, c)</span> | 
+                <span class="col2">Blue: Col 2 (b, d)</span>
+            </div>
+        </div>
+
+        <div class="canvas-box">
+            <h3>2. Eigenvectors & Eigenvalues</h3>
+            <div class="desc">
+                고유벡터 방향으로 λ배 만큼<br>늘어나거나 줄어듭니다. (Av = λv)
+            </div>
+            <canvas id="canvasRight" width="350" height="350"></canvas>
+            <div class="legend">
+                <span class="eig1">Purple: v1 (scaled by λ1)</span> | 
+                <span class="eig2">Green: v2 (scaled by λ2)</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-signature">
+        Software provided by <strong>HUFS BME Linear Algebra class</strong>
+    </div>
+</div>
+
+<script>
+    const scale = 30; // 1 unit = 30 pixels
+    const canvasLeft = document.getElementById('canvasLeft');
+    const ctxLeft = canvasLeft.getContext('2d');
+    const canvasRight = document.getElementById('canvasRight');
+    const ctxRight = canvasRight.getContext('2d');
+
+    const width = canvasLeft.width;
+    const height = canvasLeft.height;
+
+    // 초기 실행
+    window.onload = updateVisualization;
+
+    function updateVisualization() {
+        // 입력값
+        const a = parseFloat(document.getElementById('a').value);
+        const b = parseFloat(document.getElementById('b').value);
+        const c = parseFloat(document.getElementById('c').value);
+        const d = parseFloat(document.getElementById('d').value);
+
+        // 에러 메시지 초기화
+        document.getElementById('errorMsg').innerText = "";
+
+        // 1. 왼쪽 캔버스 그리기 (Column Vectors)
+        drawGrid(ctxLeft);
+        // Col 1: (a, c) - 빨간색
+        drawVector(ctxLeft, a, c, '#e74c3c', `(${a},${c})`);
+        // Col 2: (b, d) - 파란색
+        drawVector(ctxLeft, b, d, '#3498db', `(${b},${d})`);
+
+        // 2. 오른쪽 캔버스 그리기 (Eigenvectors)
+        drawGrid(ctxRight);
+        
+        // 고유값 계산
+        const trace = a + d;
+        const det = a * d - b * c;
+        const delta = trace * trace - 4 * det;
+
+        if (delta < 0) {
+            document.getElementById('errorMsg').innerText = "복소수 고유값입니다 (회전). 실수 좌표계에 표시할 수 없습니다.";
+            return;
+        }
+
+        const l1 = (trace + Math.sqrt(delta)) / 2;
+        const l2 = (trace - Math.sqrt(delta)) / 2;
+
+        // 고유벡터 계산 (단위 벡터)
+        const v1 = getNormalizedEigenvector(a, b, c, d, l1);
+        const v2 = getNormalizedEigenvector(a, b, c, d, l2);
+
+        // 시각화: 단위 벡터 * 고유값 (길이 비례)
+        // v1 방향으로 l1만큼 길이 설정
+        drawVector(ctxRight, v1.x * l1, v1.y * l1, '#9b59b6', `λ1=${l1.toFixed(2)}`);
+        
+        // v2 방향으로 l2만큼 길이 설정
+        drawVector(ctxRight, v2.x * l2, v2.y * l2, '#2ecc71', `λ2=${l2.toFixed(2)}`);
+    }
+
+    // --- Helper Functions ---
+
+    function getNormalizedEigenvector(a, b, c, d, lambda) {
+        // (A - λI)x = 0 풀이
+        const tolerance = 1e-9;
+        let x, y;
+
+        // b가 0이 아니면: (a-λ)x + by = 0  =>  y = -(a-λ)x / b
+        if (Math.abs(b) > tolerance) {
+            x = 1;
+            y = -(a - lambda) / b;
+        } 
+        // c가 0이 아니면: cx + (d-λ)y = 0  =>  x = -(d-λ)y / c
+        else if (Math.abs(c) > tolerance) {
+            y = 1;
+            x = -(d - lambda) / c;
+        } 
+        // 둘 다 0이면 (대각행렬)
+        else {
+            if (Math.abs(a - lambda) < tolerance) { x=1; y=0; } // λ = a 인 경우
+            else { x=0; y=1; } // λ = d 인 경우
+        }
+
+        // 정규화 (크기 1로 만듦)
+        const mag = Math.sqrt(x*x + y*y);
+        return { x: x/mag, y: y/mag };
+    }
+
+    function drawGrid(ctx) {
+        ctx.clearRect(0, 0, width, height);
+        
+        // Grid Lines
+        ctx.strokeStyle = '#eee';
+        ctx.lineWidth = 1;
+        for(let x = 0; x <= width; x += scale) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+        }
+        for(let y = 0; y <= height; y += scale) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+        }
+
+        // Axis
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, height/2); ctx.lineTo(width, height/2); ctx.stroke(); // X축
+        ctx.beginPath(); ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height); ctx.stroke(); // Y축
+    }
+
+    function drawVector(ctx, x, y, color, label) {
+        const cx = width / 2;
+        const cy = height / 2;
+
+        // 좌표 변환 (Canvas는 y가 아래로 증가하므로 -y)
+        const endX = cx + (x * scale);
+        const endY = cy - (y * scale);
+
+        // 선 그리기
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(endX, endY);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // 화살표 머리
+        const headLen = 10;
+        const angle = Math.atan2(cy - endY, endX - cx); // 실제 각도 계산
+        ctx.beginPath();
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - headLen * Math.cos(angle - Math.PI / 6), endY + headLen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(endX - headLen * Math.cos(angle + Math.PI / 6), endY + headLen * Math.sin(angle + Math.PI / 6));
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // 라벨
+        if(label) {
+            ctx.fillStyle = "#333";
+            ctx.font = "bold 12px Arial";
+            ctx.fillText(label, endX + 10, endY);
+        }
+    }
+</script>
+
+</body>
+</html>
